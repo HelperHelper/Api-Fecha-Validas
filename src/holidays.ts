@@ -1,10 +1,7 @@
 import axios from 'axios';
 import { DateTime } from 'luxon';
 
-// URL provided in the task
 const HOLIDAYS_URL = 'https://content.capta.co/Recruitment/WorkingDays.json';
-
-// cache: year -> Set of 'YYYY-MM-DD' strings
 const cache: Map<number, Set<string>> = new Map<number, Set<string>>();
 
 async function fetchHolidaysJson(): Promise<any> {
@@ -15,21 +12,17 @@ async function fetchHolidaysJson(): Promise<any> {
 function extractDates(obj: any): string[] {
   const out: Set<string> = new Set<string>();
   if (!obj) return [];
-
   if (Array.isArray(obj)) {
     for (const item of obj) {
-      if (typeof item === 'string') {
-        out.add(item.slice(0,10));
-      } else if (item && typeof item === 'object') {
-        // try common keys
-        if (item.date) out.add(String(item.date).slice(0,10));
-        else if (item.Date) out.add(String(item.Date).slice(0,10));
-        else if (item.fecha) out.add(String(item.fecha).slice(0,10));
+      if (typeof item === 'string') out.add(item.slice(0, 10));
+      else if (item && typeof item === 'object') {
+        if (item.date) out.add(String(item.date).slice(0, 10));
+        else if (item.Date) out.add(String(item.Date).slice(0, 10));
+        else if (item.fecha) out.add(String(item.fecha).slice(0, 10));
         else {
-          // search nested values
           for (const v of Object.values(item)) {
             if (typeof v === 'string' && /\d{4}-\d{2}-\d{2}/.test(v)) {
-              out.add(v.slice(0,10));
+              out.add(v.slice(0, 10));
               break;
             }
           }
@@ -37,23 +30,14 @@ function extractDates(obj: any): string[] {
       }
     }
     return Array.from(out);
-  } else if (typeof obj === 'object') {
-    // try to find arrays inside
+  }
+  if (typeof obj === 'object') {
     for (const v of Object.values(obj)) {
       if (Array.isArray(v)) {
         for (const item of v) {
-          if (typeof item === 'string' && /\d{4}-\d{2}-\d{2}/.test(item)) out.add(item.slice(0,10));
-          else if (item && typeof item === 'object') {
-            if (item.date) out.add(String(item.date).slice(0,10));
-            else {
-              for (const vv of Object.values(item)) {
-                if (typeof vv === 'string' && /\d{4}-\d{2}-\d{2}/.test(vv)) out.add(vv.slice(0,10));
-              }
-            }
-          }
+          if (typeof item === 'string' && /\d{4}-\d{2}-\d{2}/.test(item)) out.add(item.slice(0, 10));
+          else if (item && typeof item === 'object' && item.date) out.add(String(item.date).slice(0, 10));
         }
-      } else if (typeof v === 'string' && /\d{4}-\d{2}-\d{2}/.test(v)) {
-        out.add(v.slice(0,10));
       }
     }
     return Array.from(out);
@@ -63,15 +47,16 @@ function extractDates(obj: any): string[] {
 
 export async function getHolidaysForYear(year: number): Promise<Set<string>> {
   if (cache.has(year)) return cache.get(year)!;
-  // fetch JSON and try to extract date strings
   const data = await fetchHolidaysJson();
   const dates = extractDates(data);
-  // keep only those for the requested year
-  const set = new Set<string>(dates.filter(d => d.startsWith(String(year))));
+  const set = new Set<string>(dates.filter((d) => d.startsWith(String(year))));
   cache.set(year, set);
   return set;
 }
 
-export function isHoliday(date: DateTime, set: Set<string>): boolean {
-  return set.has(date.toISODate() ?? '');
+// Dinámico: revisa el año correcto
+export async function isHolidayDynamic(date: DateTime): Promise<boolean> {
+  const set = await getHolidaysForYear(date.year);
+  const iso = date.toISODate();
+  return iso ? set.has(iso) : false;
 }
